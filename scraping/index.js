@@ -8,7 +8,7 @@ const URLS = {
   'vaccinations-tracker': 'https://covid.cdc.gov/covid-data-tracker/#vaccinations_vacc-people-booster-percent-pop5'
 }
 
-const weeklyTrackerDataSelectors = {
+const weeklyTrackerData = {
   reportedCases: [
     'total-cases-reported',
     'current-7day-average',
@@ -44,6 +44,18 @@ const weeklyTrackerDataSelectors = {
   ]
 }
 
+function getMapValue ({ selectorValues, values }) {
+  const arr = values.map((el, idx) => {
+    const index = el.indexOf(' ')
+    const result = el.substring(0, index)
+
+    return [selectorValues[idx], result]
+  })
+
+  const mapValues = Object.fromEntries(arr)
+  return mapValues
+}
+
 async function scrape (url) {
   const res = await fetch(url)
   const html = await res.text()
@@ -58,7 +70,7 @@ async function getWeeklyTrackerData () {
   const cleanText = text => text
     .replace('\n', ' ')
 
-  rows.each((index, el) => {
+  rows.each((_, el) => {
     const $el = $(el)
 
     const text = $el.find('p').text().trim()
@@ -73,29 +85,18 @@ async function getWeeklyTrackerData () {
   const deaths = data.slice(14, 18)
   const testing = data.slice(18, 23)
 
-  return [reportedCases, vaccinations, hospitalizations, deaths, testing]
-}
+  const arr = [reportedCases, vaccinations, hospitalizations, deaths, testing]
+  const trackerKeys = Object.keys(weeklyTrackerData)
 
-function createWeeklyTrackerJSON (data) {
-  const json = {}
-  const selectorKeys = Object.keys(weeklyTrackerDataSelectors)
-
-  data.forEach((element, dataIndex) => {
-    const key = selectorKeys[dataIndex]
-    const selectorValues = weeklyTrackerDataSelectors[key]
-
-    selectorValues.forEach((item, selectorValuesIndex) => {
-      const trackerData = element[selectorValuesIndex]
-      const index = trackerData.indexOf(' ')
-      json[item] = trackerData.substring(0, index)
-    })
+  const parseData = trackerKeys.map((el, idx) => {
+    const selectorValues = weeklyTrackerData[el]
+    return getMapValue({ selectorValues, values: arr[idx] })
   })
 
-  return json
+  return parseData
 }
 
-const values = await getWeeklyTrackerData()
-const weeklyTrackerDataJSON = createWeeklyTrackerJSON(values)
+const weeklyTrackerParseData = await getWeeklyTrackerData()
 
 const filePath = path.join(process.cwd(), './db/weekly-tracker-data.json')
-await writeFile(filePath, JSON.stringify(weeklyTrackerDataJSON, null, 2), 'utf-8')
+await writeFile(filePath, JSON.stringify(weeklyTrackerParseData, null, 2), 'utf-8')
